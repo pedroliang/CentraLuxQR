@@ -60,7 +60,7 @@
   .lastread .label { font-size: 10px; color: oklch(0.82 0.1 165); text-transform: uppercase; letter-spacing: 0.06em; }
   .lastread .value { font-size: 13px; color: #e8eaed; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .dupmsg { margin-top: 10px; display: none; align-items: center; gap: 10px; padding: 10px 14px; background: #10241a; border: 1px solid #1e4a33; border-radius: 12px; animation: slidein 0.25s ease; font-size: 12.5px; color: #5ce0a0; }
+  .dupmsg { margin-top: 10px; display: none; align-items: center; gap: 10px; padding: 10px 14px; background: #241d10; border: 1px solid #4a3a15; border-radius: 12px; animation: slidein 0.25s ease; font-size: 12.5px; color: #e0b95c; }
   .dupmsg.show { display: flex; }
 
   .hist-head { padding: 18px 16px 8px; display: flex; align-items: baseline; justify-content: space-between; }
@@ -77,10 +77,10 @@
   .badge { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; padding: 1.5px 6px; border-radius: 5px; text-transform: uppercase; }
   .badge.qr { background: oklch(0.3 0.06 165); color: oklch(0.82 0.12 165); }
   .badge.barra { background: #2a2033; color: #c8a4f0; }
-  .qtybox { display: flex; align-items: center; gap: 0; flex-shrink: 0; background: #1c2027; border: 1px solid #262b33; border-radius: 9px; overflow: hidden; }
-  .qtybox button { font-size: 15px; font-weight: 700; color: #9aa0a6; background: transparent; border: none; width: 28px; height: 32px; cursor: pointer; line-height: 1; padding: 0; }
+  .qtybox { display: flex; align-items: center; gap: 0; flex-shrink: 0; background: #1c2027; border: 2px solid oklch(0.45 0.09 165); border-radius: 12px; overflow: hidden; }
+  .qtybox button { font-size: 20px; font-weight: 700; color: #c4c9cf; background: transparent; border: none; width: 38px; height: 46px; cursor: pointer; line-height: 1; padding: 0; }
   .qtybox button:active { background: #262b33; }
-  .qtybox .q { font-size: 13px; font-weight: 700; color: oklch(0.82 0.12 165); font-variant-numeric: tabular-nums; min-width: 26px; text-align: center; }
+  .qtybox .q { font-size: 20px; font-weight: 800; color: oklch(0.85 0.14 165); font-variant-numeric: tabular-nums; min-width: 40px; text-align: center; background: oklch(0.24 0.04 165); align-self: stretch; display: flex; align-items: center; justify-content: center; }
   .item .copy { font-size: 11px; color: #9aa0a6; background: #1c2027; border: 1px solid #262b33; padding: 6px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0; }
 
   .footer { position: sticky; bottom: 0; margin-top: 16px; padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); background: rgba(13,15,18,0.94); backdrop-filter: blur(8px); border-top: 1px solid #1c2026; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
@@ -135,6 +135,10 @@
         <input type="checkbox" id="noRepeat">
         <span>Não repetir códigos na listagem</span>
       </label>
+      <label class="norepeat">
+        <input type="checkbox" id="beepOn">
+        <span>Bip sonoro ao ler código</span>
+      </label>
     </div>
 
     <div class="lastread" id="lastRead">
@@ -145,7 +149,7 @@
       </div>
     </div>
 
-    <div class="dupmsg" id="dupMsg"><span id="dupMsgText">✓ Código já registrado — quantidade +1.</span></div>
+    <div class="dupmsg" id="dupMsg">⚠ Código já registrado — leitura ignorada.</div>
   </div>
 
   <div class="hist-head">
@@ -172,10 +176,13 @@
   var LS_ITEMS = "centralux_qr_items";
   var LS_MODE = "centralux_qr_mode";
   var LS_NOREPEAT = "centralux_qr_norepeat";
+  var LS_BEEP = "centralux_qr_beep";
 
   var items = [];
   var mode = "qr";            // "qr" | "barra"
   var noRepeat = false;
+  var beepOn = false;
+  var audioCtx = null;
   var stream = null;
   var raf = null;
   var lastDetectVal = "";
@@ -212,6 +219,7 @@
   var btnTxt = $("btnTxt"), btnCsv = $("btnCsv"), btnClear = $("btnClear");
   var modeQrBtn = $("modeQr"), modeBarBtn = $("modeBar");
   var noRepeatCb = $("noRepeat");
+  var beepCb = $("beepOn");
   var subtitle = $("subtitle");
 
   // Persistência
@@ -227,6 +235,7 @@
     } catch (e) {}
     mode = localStorage.getItem(LS_MODE) === "barra" ? "barra" : "qr";
     noRepeat = localStorage.getItem(LS_NOREPEAT) === "1";
+    beepOn = localStorage.getItem(LS_BEEP) === "1";
   }
   function persistItems() {
     try { localStorage.setItem(LS_ITEMS, JSON.stringify(items)); } catch (e) {}
@@ -333,6 +342,42 @@
     });
   }
 
+  function ensureAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playBeep(kind) {
+    if (!beepOn) return;
+    var ctx = ensureAudio();
+    if (!ctx) return;
+    var t = ctx.currentTime;
+    function tone(freq, start, dur, vol) {
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t + start);
+      gain.gain.exponentialRampToValueAtTime(vol, t + start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + start + dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t + start); osc.stop(t + start + dur + 0.02);
+    }
+    if (kind === "dup") {
+      // duplicado ignorado: dois tons graves
+      tone(320, 0, 0.10, 0.25);
+      tone(320, 0.14, 0.10, 0.25);
+    } else {
+      // leitura registrada: bip agudo curto
+      tone(1400, 0, 0.09, 0.3);
+    }
+  }
+
   function showDupMsg() {
     dupMsg.classList.add("show");
     if (dupTimer) clearTimeout(dupTimer);
@@ -431,22 +476,12 @@
     lastDetectVal = value;
     lastDetectAt = now;
 
-    // checkbox: não repetir códigos -> soma +1 na quantidade do código existente
+    // checkbox: não repetir códigos -> registra apenas UMA vez, ignora repetidas
     if (noRepeat) {
-      var existing = null;
-      for (var i = 0; i < items.length; i++) {
-        if (items[i].value === value) { existing = items[i]; break; }
-      }
-      if (existing) {
-        existing.qty = (existing.qty || 1) + 1;
-        persistItems();
-        lastValueEl.textContent = value + "  (x" + existing.qty + ")";
-        lastRead.classList.add("show");
+      var exists = items.some(function (it) { return it.value === value; });
+      if (exists) {
         showDupMsg();
-        renderList();
-        flash.style.animation = "none";
-        void flash.offsetWidth;
-        flash.style.animation = "flashpulse 0.5s ease";
+        playBeep("dup");
         if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
         return;
       }
@@ -467,6 +502,7 @@
     flash.style.animation = "none";
     void flash.offsetWidth;
     flash.style.animation = "flashpulse 0.5s ease";
+    playBeep("ok");
     if (navigator.vibrate) navigator.vibrate(60);
   }
 
@@ -529,6 +565,14 @@
     noRepeat = noRepeatCb.checked;
     localStorage.setItem(LS_NOREPEAT, noRepeat ? "1" : "0");
   });
+  beepCb.addEventListener("change", function () {
+    beepOn = beepCb.checked;
+    localStorage.setItem(LS_BEEP, beepOn ? "1" : "0");
+    if (beepOn) {
+      ensureAudio(); // desbloqueia o audio no gesto do usuario (necessario no iOS/Android)
+      playBeep("ok"); // bip de teste
+    }
+  });
 
   $("btnStart").addEventListener("click", startCamera);
   $("btnRetry").addEventListener("click", startCamera);
@@ -536,6 +580,7 @@
   // Init
   loadState();
   noRepeatCb.checked = noRepeat;
+  beepCb.checked = beepOn;
   applyModeUI();
   renderList();
 })();
