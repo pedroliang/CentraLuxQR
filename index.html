@@ -60,7 +60,7 @@
   .lastread .label { font-size: 10px; color: oklch(0.82 0.1 165); text-transform: uppercase; letter-spacing: 0.06em; }
   .lastread .value { font-size: 13px; color: #e8eaed; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .dupmsg { margin-top: 10px; display: none; align-items: center; gap: 10px; padding: 10px 14px; background: #241d10; border: 1px solid #4a3a15; border-radius: 12px; animation: slidein 0.25s ease; font-size: 12.5px; color: #e0b95c; }
+  .dupmsg { margin-top: 10px; display: none; align-items: center; gap: 10px; padding: 10px 14px; background: #10241a; border: 1px solid #1e4a33; border-radius: 12px; animation: slidein 0.25s ease; font-size: 12.5px; color: #5ce0a0; }
   .dupmsg.show { display: flex; }
 
   .hist-head { padding: 18px 16px 8px; display: flex; align-items: baseline; justify-content: space-between; }
@@ -77,6 +77,10 @@
   .badge { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; padding: 1.5px 6px; border-radius: 5px; text-transform: uppercase; }
   .badge.qr { background: oklch(0.3 0.06 165); color: oklch(0.82 0.12 165); }
   .badge.barra { background: #2a2033; color: #c8a4f0; }
+  .qtybox { display: flex; align-items: center; gap: 0; flex-shrink: 0; background: #1c2027; border: 1px solid #262b33; border-radius: 9px; overflow: hidden; }
+  .qtybox button { font-size: 15px; font-weight: 700; color: #9aa0a6; background: transparent; border: none; width: 28px; height: 32px; cursor: pointer; line-height: 1; padding: 0; }
+  .qtybox button:active { background: #262b33; }
+  .qtybox .q { font-size: 13px; font-weight: 700; color: oklch(0.82 0.12 165); font-variant-numeric: tabular-nums; min-width: 26px; text-align: center; }
   .item .copy { font-size: 11px; color: #9aa0a6; background: #1c2027; border: 1px solid #262b33; padding: 6px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0; }
 
   .footer { position: sticky; bottom: 0; margin-top: 16px; padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); background: rgba(13,15,18,0.94); backdrop-filter: blur(8px); border-top: 1px solid #1c2026; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
@@ -141,7 +145,7 @@
       </div>
     </div>
 
-    <div class="dupmsg" id="dupMsg">⚠ Código já está na listagem — ignorado.</div>
+    <div class="dupmsg" id="dupMsg"><span id="dupMsgText">✓ Código já registrado — quantidade +1.</span></div>
   </div>
 
   <div class="hist-head">
@@ -156,7 +160,7 @@
   <div class="footer">
     <button id="btnTxt" disabled>Exportar TXT</button>
     <button id="btnCsv" disabled>Exportar CSV</button>
-    <button id="btnClear" class="danger" disabled>Limpar</button>
+    <button id="btnClear" class="danger" disabled>Resetar tudo</button>
   </div>
 
 </div>
@@ -214,7 +218,12 @@
   function loadState() {
     try {
       var saved = JSON.parse(localStorage.getItem(LS_ITEMS) || "[]");
-      if (Array.isArray(saved)) items = saved;
+      if (Array.isArray(saved)) {
+        items = saved.map(function (it) {
+          if (!it.qty || it.qty < 1) it.qty = 1;
+          return it;
+        });
+      }
     } catch (e) {}
     mode = localStorage.getItem(LS_MODE) === "barra" ? "barra" : "qr";
     noRepeat = localStorage.getItem(LS_NOREPEAT) === "1";
@@ -230,8 +239,12 @@
     subtitle.textContent = mode === "qr" ? "Leitor de QR Code" : "Leitor de Código de Barras";
   }
 
+  function totalScans() {
+    return items.reduce(function (sum, it) { return sum + (it.qty || 1); }, 0);
+  }
+
   function renderList() {
-    countTop.textContent = items.length;
+    countTop.textContent = totalScans();
     countList.textContent = items.length;
     var isEmpty = items.length === 0;
     btnTxt.disabled = isEmpty;
@@ -269,6 +282,38 @@
       body.appendChild(val);
       body.appendChild(meta);
 
+      // contador de quantidade com botoes +/-
+      var qtybox = document.createElement("div");
+      qtybox.className = "qtybox";
+      var minus = document.createElement("button");
+      minus.textContent = "\u2212";
+      minus.title = "Diminuir";
+      var q = document.createElement("div");
+      q.className = "q";
+      q.textContent = it.qty || 1;
+      var plus = document.createElement("button");
+      plus.textContent = "+";
+      plus.title = "Aumentar";
+      minus.addEventListener("click", function () {
+        if ((it.qty || 1) <= 1) {
+          if (!window.confirm("Quantidade chegará a zero. Remover este código da lista?")) return;
+          var i2 = items.indexOf(it);
+          if (i2 >= 0) items.splice(i2, 1);
+        } else {
+          it.qty -= 1;
+        }
+        persistItems();
+        renderList();
+      });
+      plus.addEventListener("click", function () {
+        it.qty = (it.qty || 1) + 1;
+        persistItems();
+        renderList();
+      });
+      qtybox.appendChild(minus);
+      qtybox.appendChild(q);
+      qtybox.appendChild(plus);
+
       var copy = document.createElement("button");
       copy.className = "copy";
       copy.textContent = "Copiar";
@@ -282,6 +327,7 @@
 
       div.appendChild(n);
       div.appendChild(body);
+      div.appendChild(qtybox);
       div.appendChild(copy);
       histEl.appendChild(div);
     });
@@ -385,11 +431,22 @@
     lastDetectVal = value;
     lastDetectAt = now;
 
-    // checkbox: não repetir códigos
+    // checkbox: não repetir códigos -> soma +1 na quantidade do código existente
     if (noRepeat) {
-      var exists = items.some(function (it) { return it.value === value; });
-      if (exists) {
+      var existing = null;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].value === value) { existing = items[i]; break; }
+      }
+      if (existing) {
+        existing.qty = (existing.qty || 1) + 1;
+        persistItems();
+        lastValueEl.textContent = value + "  (x" + existing.qty + ")";
+        lastRead.classList.add("show");
         showDupMsg();
+        renderList();
+        flash.style.animation = "none";
+        void flash.offsetWidth;
+        flash.style.animation = "flashpulse 0.5s ease";
         if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
         return;
       }
@@ -400,7 +457,7 @@
     var time = pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() + " " +
                pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
 
-    items.unshift({ value: value, time: time, ts: now, type: type });
+    items.unshift({ value: value, time: time, ts: now, type: type, qty: 1 });
     persistItems();
 
     lastValueEl.textContent = value;
@@ -432,7 +489,7 @@
   btnTxt.addEventListener("click", function () {
     if (!items.length) return;
     var lines = items.slice().reverse().map(function (it, i) {
-      return (i + 1) + ". [" + it.time + "] " + it.value;
+      return (i + 1) + ". [" + it.time + "] " + it.value + "  |  Qtd: " + (it.qty || 1);
     });
     download("centralux-qr-" + stamp() + ".txt", lines.join("\n"), "text/plain;charset=utf-8");
   });
@@ -440,9 +497,9 @@
   btnCsv.addEventListener("click", function () {
     if (!items.length) return;
     var esc = function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; };
-    var rows = [["indice", "valor", "tipo", "data_hora"]];
+    var rows = [["indice", "valor", "quantidade", "tipo", "data_hora"]];
     items.slice().reverse().forEach(function (it, i) {
-      rows.push([i + 1, it.value, it.type === "barra" ? "codigo_de_barras" : "qr_code", it.time]);
+      rows.push([i + 1, it.value, it.qty || 1, it.type === "barra" ? "codigo_de_barras" : "qr_code", it.time]);
     });
     var csv = "\uFEFF" + rows.map(function (r) { return r.map(esc).join(","); }).join("\r\n");
     download("centralux-qr-" + stamp() + ".csv", csv, "text/csv;charset=utf-8");
@@ -450,7 +507,7 @@
 
   btnClear.addEventListener("click", function () {
     if (!items.length) return;
-    if (!window.confirm("Limpar todo o histórico de leituras?")) return;
+    if (!window.confirm("Resetar tudo? Isso apaga todos os códigos e zera os contadores.")) return;
     items = [];
     persistItems();
     lastRead.classList.remove("show");
