@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: "Helvetica Neue", Helvetica, system-ui, -apple-system, sans-serif; background: #0d0f12; }
+  @keyframes scanline { 0% { top: 4%; } 50% { top: 92%; } 100% { top: 4%; } }
+  @keyframes flashpulse { 0% { opacity: 0; } 20% { opacity: 0.55; } 100% { opacity: 0; } }
+  @keyframes slidein { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  a { color: oklch(0.78 0.13 165); }
+  a:hover { color: oklch(0.85 0.13 165); }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+</helmet>
+<template id="__bundler_thumbnail">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <rect width="100" height="100" fill="#0d0f12"/>
+    <g fill="none" stroke="#3fd6a0" stroke-width="4">
+      <path d="M30 30 h14 v14"/>
+      <path d="M70 30 h-14 v14"/>
+      <path d="M30 70 h14 v-14"/>
+      <path d="M70 70 h-14 v-14"/>
+    </g>
+  </svg>
+</template>
+<div style="min-height: 100dvh; background: #0d0f12; color: #e8eaed; display: flex; flex-direction: column; max-width: 520px; margin: 0 auto; position: relative;">
+
+  <header style="display: flex; align-items: center; gap: 10px; padding: 16px 18px calc(14px + env(safe-area-inset-top)); padding-top: calc(16px + env(safe-area-inset-top)); border-bottom: 1px solid #1c2026; position: sticky; top: 0; background: rgba(13,15,18,0.92); backdrop-filter: blur(8px); z-index: 10;">
+    <div style="width: 30px; height: 30px; border-radius: 8px; background: oklch(0.72 0.14 165); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+      <div style="width: 14px; height: 14px; border: 2.5px solid #0d0f12; border-radius: 3px;"></div>
+    </div>
+    <div style="flex: 1;">
+      <div style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em;">Centralux QR</div>
+      <div style="font-size: 11px; color: #6b7280; letter-spacing: 0.02em;">Leitor de QR Code</div>
+    </div>
+    <div style="font-size: 12px; color: #9aa0a6; font-variant-numeric: tabular-nums; background: #16191e; padding: 5px 10px; border-radius: 999px;">{{ count }} lidos</div>
+  </header>
+
+  <div style="padding: 16px 16px 0;">
+    <div style="position: relative; width: 100%; aspect-ratio: 1 / 1; background: #000; border-radius: 18px; overflow: hidden; border: 1px solid #23272e;">
+      <video ref="{{ videoRef }}" playsinline muted autoplay style="width: 100%; height: 100%; object-fit: cover; display: block;"></video>
+      <canvas ref="{{ canvasRef }}" style="display: none;"></canvas>
+
+      <sc-if value="{{ scanning }}" hint-placeholder-val="{{ true }}">
+        <div style="position: absolute; inset: 0; pointer-events: none;">
+          <div style="position: absolute; top: 12%; left: 12%; right: 12%; bottom: 12%;">
+            <div style="position: absolute; top: 0; left: 0; width: 30px; height: 30px; border-top: 3px solid oklch(0.78 0.14 165); border-left: 3px solid oklch(0.78 0.14 165); border-top-left-radius: 8px;"></div>
+            <div style="position: absolute; top: 0; right: 0; width: 30px; height: 30px; border-top: 3px solid oklch(0.78 0.14 165); border-right: 3px solid oklch(0.78 0.14 165); border-top-right-radius: 8px;"></div>
+            <div style="position: absolute; bottom: 0; left: 0; width: 30px; height: 30px; border-bottom: 3px solid oklch(0.78 0.14 165); border-left: 3px solid oklch(0.78 0.14 165); border-bottom-left-radius: 8px;"></div>
+            <div style="position: absolute; bottom: 0; right: 0; width: 30px; height: 30px; border-bottom: 3px solid oklch(0.78 0.14 165); border-right: 3px solid oklch(0.78 0.14 165); border-bottom-right-radius: 8px;"></div>
+            <div style="position: absolute; left: 0; right: 0; height: 2px; background: oklch(0.82 0.15 165); box-shadow: 0 0 12px oklch(0.78 0.14 165); animation: scanline 2.6s ease-in-out infinite;"></div>
+          </div>
+        </div>
+      </sc-if>
+
+      <div ref="{{ flashRef }}" style="position: absolute; inset: 0; background: oklch(0.82 0.15 165); opacity: 0; pointer-events: none;"></div>
+
+      <sc-if value="{{ hasError }}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 28px; text-align: center; background: #0d0f12;">
+          <div style="font-size: 13px; color: #c4c9cf; line-height: 1.5;">{{ error }}</div>
+          <button onClick="{{ startCamera }}" style="font: inherit; font-size: 14px; font-weight: 600; color: #0d0f12; background: oklch(0.78 0.14 165); border: none; padding: 11px 20px; border-radius: 10px; cursor: pointer;">Ativar câmera</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ idle }}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 28px; text-align: center; background: #0d0f12;">
+          <div style="font-size: 14px; color: #9aa0a6; line-height: 1.5;">Toque para abrir a câmera<br>e escanear QR Codes</div>
+          <button onClick="{{ startCamera }}" style="font: inherit; font-size: 15px; font-weight: 600; color: #0d0f12; background: oklch(0.78 0.14 165); border: none; padding: 13px 26px; border-radius: 12px; cursor: pointer;">Iniciar leitura</button>
+        </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ lastValue }}" hint-placeholder-val="">
+      <div style="margin-top: 12px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: oklch(0.28 0.05 165); border: 1px solid oklch(0.4 0.08 165); border-radius: 12px; animation: slidein 0.25s ease;">
+        <div style="width: 8px; height: 8px; border-radius: 999px; background: oklch(0.82 0.15 165); flex-shrink: 0;"></div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 10px; color: oklch(0.82 0.1 165); text-transform: uppercase; letter-spacing: 0.06em;">Último lido</div>
+          <div style="font-size: 13px; color: #e8eaed; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ lastValue }}</div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="padding: 18px 16px 8px; display: flex; align-items: baseline; justify-content: space-between;">
+    <div style="font-size: 14px; font-weight: 700; letter-spacing: -0.01em;">Histórico</div>
+    <div style="font-size: 12px; color: #6b7280;">{{ count }} itens</div>
+  </div>
+
+  <div style="flex: 1; padding: 0 16px; display: flex; flex-direction: column; gap: 8px;">
+    <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
+      <div style="padding: 40px 20px; text-align: center; color: #4b5563; font-size: 13px; border: 1px dashed #23272e; border-radius: 14px;">Nenhum QR Code lido ainda.</div>
+    </sc-if>
+    <sc-for list="{{ items }}" as="item" hint-placeholder-count="0">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #14171c; border: 1px solid #1e222a; border-radius: 12px;">
+        <div style="font-size: 11px; color: #565c66; font-variant-numeric: tabular-nums; width: 22px; text-align: right; flex-shrink: 0;">{{ item.n }}</div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 13.5px; color: #e8eaed; word-break: break-all; line-height: 1.35;">{{ item.value }}</div>
+          <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">{{ item.time }}</div>
+        </div>
+        <button onClick="{{ item.copy }}" title="Copiar" style="font: inherit; font-size: 11px; color: #9aa0a6; background: #1c2027; border: 1px solid #262b33; padding: 6px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0;">Copiar</button>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="position: sticky; bottom: 0; margin-top: 16px; padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); background: rgba(13,15,18,0.94); backdrop-filter: blur(8px); border-top: 1px solid #1c2026; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+    <button onClick="{{ exportTxt }}" disabled="{{ isEmpty }}" style="font: inherit; font-size: 12.5px; font-weight: 600; color: #e8eaed; background: #1c2027; border: 1px solid #262b33; padding: 12px 6px; border-radius: 11px; cursor: pointer; opacity: {{ btnOpacity }};">Exportar TXT</button>
+    <button onClick="{{ exportCsv }}" disabled="{{ isEmpty }}" style="font: inherit; font-size: 12.5px; font-weight: 600; color: #e8eaed; background: #1c2027; border: 1px solid #262b33; padding: 12px 6px; border-radius: 11px; cursor: pointer; opacity: {{ btnOpacity }};">Exportar CSV</button>
+    <button onClick="{{ clearAll }}" disabled="{{ isEmpty }}" style="font: inherit; font-size: 12.5px; font-weight: 600; color: oklch(0.72 0.15 25); background: #211619; border: 1px solid oklch(0.35 0.08 25); padding: 12px 6px; border-radius: 11px; cursor: pointer; opacity: {{ btnOpacity }};">Limpar</button>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { items: [], status: "idle", error: "", lastValue: "" };
+
+  constructor(props) {
+    super(props);
+    this.videoRef = React.createRef();
+    this.canvasRef = React.createRef();
+    this.flashRef = React.createRef();
+    this._raf = null;
+    this._stream = null;
+    this._lastDetectAt = 0;
+    this._lastDetectVal = "";
+  }
+
+  componentDidMount() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("centralux_qr_items") || "[]");
+      if (Array.isArray(saved)) this.setState({ items: saved });
+    } catch (e) {}
+  }
+
+  componentWillUnmount() {
+    this._stopCamera();
+  }
+
+  _persist(items) {
+    try { localStorage.setItem("centralux_qr_items", JSON.stringify(items)); } catch (e) {}
+  }
+
+  _stopCamera() {
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._raf = null;
+    if (this._stream) {
+      this._stream.getTracks().forEach(t => t.stop());
+      this._stream = null;
+    }
+  }
+
+  startCamera = async () => {
+    this._stopCamera();
+    this.setState({ status: "starting", error: "" });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      this.setState({ status: "error", error: "Câmera não suportada neste navegador." });
+      return;
+    }
+    try {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: "environment" } }, audio: false
+        });
+      } catch (e) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }, audio: false
+        });
+      }
+      this._stream = stream;
+      const video = this.videoRef.current;
+      if (!video) return;
+      video.srcObject = stream;
+      video.setAttribute("playsinline", "true");
+      await video.play();
+      this.setState({ status: "scanning" });
+      this._tick();
+    } catch (err) {
+      let msg = "Não foi possível acessar a câmera.";
+      if (err && (err.name === "NotAllowedError" || err.name === "SecurityError"))
+        msg = "Permissão da câmera negada. Habilite o acesso à câmera nas configurações e tente novamente.";
+      else if (err && err.name === "NotFoundError")
+        msg = "Nenhuma câmera encontrada no aparelho.";
+      this.setState({ status: "error", error: msg });
+    }
+  };
+
+  _tick = () => {
+    this._raf = requestAnimationFrame(this._tick);
+    const video = this.videoRef.current;
+    const canvas = this.canvasRef.current;
+    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+    if (typeof window.jsQR !== "function") return;
+
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return;
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(video, 0, 0, w, h);
+    let imageData;
+    try { imageData = ctx.getImageData(0, 0, w, h); } catch (e) { return; }
+    const code = window.jsQR(imageData.data, w, h, { inversionAttempts: "dontInvert" });
+    if (code && code.data) this._onDetect(code.data);
+  };
+
+  _onDetect(value) {
+    const now = Date.now();
+    // debounce identical scans within 2.5s
+    if (value === this._lastDetectVal && now - this._lastDetectAt < 2500) return;
+    this._lastDetectVal = value;
+    this._lastDetectAt = now;
+
+    const d = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    const time = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const entry = { value, time, ts: now };
+
+    this.setState(s => {
+      const items = [entry, ...s.items];
+      this._persist(items);
+      return { items, lastValue: value };
+    });
+
+    // visual flash
+    const flash = this.flashRef.current;
+    if (flash) {
+      flash.style.animation = "none";
+      void flash.offsetWidth;
+      flash.style.animation = "flashpulse 0.5s ease";
+    }
+    if (navigator.vibrate) navigator.vibrate(60);
+  }
+
+  _download(filename, text, mime) {
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  exportTxt = () => {
+    if (!this.state.items.length) return;
+    const lines = this.state.items.slice().reverse()
+      .map((it, i) => `${i + 1}. [${it.time}] ${it.value}`);
+    this._download(`centralux-qr-${this._stamp()}.txt`, lines.join("\n"), "text/plain;charset=utf-8");
+  };
+
+  exportCsv = () => {
+    if (!this.state.items.length) return;
+    const esc = v => `"${String(v).replace(/"/g, '""')}"`;
+    const rows = [["indice", "valor", "data_hora"]];
+    this.state.items.slice().reverse().forEach((it, i) => rows.push([i + 1, it.value, it.time]));
+    const csv = "\uFEFF" + rows.map(r => r.map(esc).join(",")).join("\r\n");
+    this._download(`centralux-qr-${this._stamp()}.csv`, csv, "text/csv;charset=utf-8");
+  };
+
+  _stamp() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  }
+
+  clearAll = () => {
+    if (!this.state.items.length) return;
+    if (!window.confirm("Limpar todo o histórico de leituras?")) return;
+    this._persist([]);
+    this.setState({ items: [], lastValue: "" });
+  };
+
+  _copy(value) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).catch(() => {});
+    }
+  }
+
+  renderVals() {
+    const items = this.state.items;
+    const isEmpty = items.length === 0;
+    return {
+      videoRef: this.videoRef,
+      canvasRef: this.canvasRef,
+      flashRef: this.flashRef,
+      count: items.length,
+      isEmpty,
+      scanning: this.state.status === "scanning",
+      idle: this.state.status === "idle" || this.state.status === "starting",
+      hasError: this.state.status === "error",
+      error: this.state.error,
+      lastValue: this.state.lastValue,
+      startCamera: this.startCamera,
+      exportTxt: this.exportTxt,
+      exportCsv: this.exportCsv,
+      clearAll: this.clearAll,
+      btnOpacity: isEmpty ? 0.4 : 1,
+      items: items.map((it, i) => ({
+        n: items.length - i,
+        value: it.value,
+        time: it.time,
+        copy: () => this._copy(it.value)
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>
