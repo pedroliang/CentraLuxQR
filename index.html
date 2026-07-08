@@ -508,15 +508,69 @@
   function buildReport() {
     var d = new Date();
     var pad = function (n) { return String(n).padStart(2, "0"); };
-    var header = "*Relat\u00F3rio Centralux QR*\n" +
+    var header = "*Relatório Centralux QR*\n" +
       "Gerado em " + pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() +
-      " \u00E0s " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + "\n" +
-      "Total de c\u00F3digos: *" + items.length + "*\n\n";
+      " às " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + "\n" +
+      "Total de códigos: *" + items.length + "*\n\n";
     var lines = items.slice().reverse().map(function (it, i) {
       var tipo = it.type === "barra" ? "Barras" : "QR";
-      return (i + 1) + ". " + it.value + "\n   (" + tipo + " \u2014 " + it.time + ")";
+      return (i + 1) + ". " + it.value + "\n   (" + tipo + " — " + it.time + ")";
     });
     return header + lines.join("\n");
   }
 
   btnWhats.addEventListener("click", function () {
+    if (!items.length) return;
+    var text = buildReport();
+    // WhatsApp limita o tamanho da URL; trunca relatorios muito grandes
+    var MAX = 60000;
+    if (text.length > MAX) text = text.slice(0, MAX) + "\n\n… (relatório truncado)";
+    window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+  });
+
+  btnClear.addEventListener("click", function () {
+    if (!items.length) return;
+    if (!window.confirm("Resetar tudo? Isso apaga todos os códigos e zera os contadores.")) return;
+    items = [];
+    persistItems();
+    lastRead.classList.remove("show");
+    renderList();
+  });
+
+  // Modo e checkbox
+  modeQrBtn.addEventListener("click", function () {
+    mode = "qr";
+    localStorage.setItem(LS_MODE, mode);
+    applyModeUI();
+  });
+  modeBarBtn.addEventListener("click", function () {
+    mode = "barra";
+    localStorage.setItem(LS_MODE, mode);
+    applyModeUI();
+  });
+  noRepeatCb.addEventListener("change", function () {
+    noRepeat = noRepeatCb.checked;
+    localStorage.setItem(LS_NOREPEAT, noRepeat ? "1" : "0");
+  });
+  beepCb.addEventListener("change", function () {
+    beepOn = beepCb.checked;
+    localStorage.setItem(LS_BEEP, beepOn ? "1" : "0");
+    if (beepOn) {
+      ensureAudio(); // desbloqueia o audio no gesto do usuario (necessario no iOS/Android)
+      playBeep("ok"); // bip de teste
+    }
+  });
+
+  $("btnStart").addEventListener("click", startCamera);
+  $("btnRetry").addEventListener("click", startCamera);
+
+  // Init
+  loadState();
+  noRepeatCb.checked = noRepeat;
+  beepCb.checked = beepOn;
+  applyModeUI();
+  renderList();
+})();
+</script>
+</body>
+</html>
