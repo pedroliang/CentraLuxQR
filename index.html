@@ -77,10 +77,11 @@
   .badge { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; padding: 1.5px 6px; border-radius: 5px; text-transform: uppercase; }
   .badge.qr { background: oklch(0.3 0.06 165); color: oklch(0.82 0.12 165); }
   .badge.barra { background: #2a2033; color: #c8a4f0; }
-  .qtybox { display: flex; align-items: center; gap: 0; flex-shrink: 0; background: #1c2027; border: 2px solid oklch(0.45 0.09 165); border-radius: 12px; overflow: hidden; }
-  .qtybox button { font-size: 20px; font-weight: 700; color: #c4c9cf; background: transparent; border: none; width: 38px; height: 46px; cursor: pointer; line-height: 1; padding: 0; }
-  .qtybox button:active { background: #262b33; }
-  .qtybox .q { font-size: 20px; font-weight: 800; color: oklch(0.85 0.14 165); font-variant-numeric: tabular-nums; min-width: 40px; text-align: center; background: oklch(0.24 0.04 165); align-self: stretch; display: flex; align-items: center; justify-content: center; }
+  .bigcounter { margin-top: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 16px 14px; background: oklch(0.22 0.04 165); border: 2px solid oklch(0.45 0.09 165); border-radius: 16px; }
+  .bigcounter .label { font-size: 11px; font-weight: 700; color: oklch(0.75 0.1 165); text-transform: uppercase; letter-spacing: 0.12em; }
+  .bigcounter .num { font-size: 52px; font-weight: 800; color: oklch(0.85 0.15 165); font-variant-numeric: tabular-nums; line-height: 1.1; text-shadow: 0 0 24px oklch(0.6 0.14 165 / 0.5); }
+  @keyframes countpop { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+  .bigcounter .num.pop { animation: countpop 0.3s ease; }
   .item .copy { font-size: 11px; color: #9aa0a6; background: #1c2027; border: 1px solid #262b33; padding: 6px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0; }
 
   .footer { position: sticky; bottom: 0; margin-top: 16px; padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); background: rgba(13,15,18,0.94); backdrop-filter: blur(8px); border-top: 1px solid #1c2026; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
@@ -139,6 +140,11 @@
         <input type="checkbox" id="beepOn">
         <span>Bip sonoro ao ler código</span>
       </label>
+    </div>
+
+    <div class="bigcounter">
+      <div class="label">Códigos registrados</div>
+      <div class="num" id="bigCount">0</div>
     </div>
 
     <div class="lastread" id="lastRead">
@@ -216,6 +222,7 @@
   var lastRead = $("lastRead"), lastValueEl = $("lastValue"), dupMsg = $("dupMsg");
   var histEl = $("hist"), emptyEl = $("empty");
   var countTop = $("countTop"), countList = $("countList");
+  var bigCount = $("bigCount");
   var btnTxt = $("btnTxt"), btnCsv = $("btnCsv"), btnClear = $("btnClear");
   var modeQrBtn = $("modeQr"), modeBarBtn = $("modeBar");
   var noRepeatCb = $("noRepeat");
@@ -226,12 +233,7 @@
   function loadState() {
     try {
       var saved = JSON.parse(localStorage.getItem(LS_ITEMS) || "[]");
-      if (Array.isArray(saved)) {
-        items = saved.map(function (it) {
-          if (!it.qty || it.qty < 1) it.qty = 1;
-          return it;
-        });
-      }
+      if (Array.isArray(saved)) items = saved;
     } catch (e) {}
     mode = localStorage.getItem(LS_MODE) === "barra" ? "barra" : "qr";
     noRepeat = localStorage.getItem(LS_NOREPEAT) === "1";
@@ -248,13 +250,10 @@
     subtitle.textContent = mode === "qr" ? "Leitor de QR Code" : "Leitor de Código de Barras";
   }
 
-  function totalScans() {
-    return items.reduce(function (sum, it) { return sum + (it.qty || 1); }, 0);
-  }
-
   function renderList() {
-    countTop.textContent = totalScans();
+    countTop.textContent = items.length;
     countList.textContent = items.length;
+    bigCount.textContent = items.length;
     var isEmpty = items.length === 0;
     btnTxt.disabled = isEmpty;
     btnCsv.disabled = isEmpty;
@@ -291,38 +290,6 @@
       body.appendChild(val);
       body.appendChild(meta);
 
-      // contador de quantidade com botoes +/-
-      var qtybox = document.createElement("div");
-      qtybox.className = "qtybox";
-      var minus = document.createElement("button");
-      minus.textContent = "\u2212";
-      minus.title = "Diminuir";
-      var q = document.createElement("div");
-      q.className = "q";
-      q.textContent = it.qty || 1;
-      var plus = document.createElement("button");
-      plus.textContent = "+";
-      plus.title = "Aumentar";
-      minus.addEventListener("click", function () {
-        if ((it.qty || 1) <= 1) {
-          if (!window.confirm("Quantidade chegará a zero. Remover este código da lista?")) return;
-          var i2 = items.indexOf(it);
-          if (i2 >= 0) items.splice(i2, 1);
-        } else {
-          it.qty -= 1;
-        }
-        persistItems();
-        renderList();
-      });
-      plus.addEventListener("click", function () {
-        it.qty = (it.qty || 1) + 1;
-        persistItems();
-        renderList();
-      });
-      qtybox.appendChild(minus);
-      qtybox.appendChild(q);
-      qtybox.appendChild(plus);
-
       var copy = document.createElement("button");
       copy.className = "copy";
       copy.textContent = "Copiar";
@@ -336,7 +303,6 @@
 
       div.appendChild(n);
       div.appendChild(body);
-      div.appendChild(qtybox);
       div.appendChild(copy);
       histEl.appendChild(div);
     });
@@ -492,12 +458,17 @@
     var time = pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() + " " +
                pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
 
-    items.unshift({ value: value, time: time, ts: now, type: type, qty: 1 });
+    items.unshift({ value: value, time: time, ts: now, type: type });
     persistItems();
 
     lastValueEl.textContent = value;
     lastRead.classList.add("show");
     renderList();
+
+    // anima o contador grande
+    bigCount.classList.remove("pop");
+    void bigCount.offsetWidth;
+    bigCount.classList.add("pop");
 
     flash.style.animation = "none";
     void flash.offsetWidth;
@@ -525,7 +496,7 @@
   btnTxt.addEventListener("click", function () {
     if (!items.length) return;
     var lines = items.slice().reverse().map(function (it, i) {
-      return (i + 1) + ". [" + it.time + "] " + it.value + "  |  Qtd: " + (it.qty || 1);
+      return (i + 1) + ". [" + it.time + "] " + it.value;
     });
     download("centralux-qr-" + stamp() + ".txt", lines.join("\n"), "text/plain;charset=utf-8");
   });
@@ -533,9 +504,9 @@
   btnCsv.addEventListener("click", function () {
     if (!items.length) return;
     var esc = function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; };
-    var rows = [["indice", "valor", "quantidade", "tipo", "data_hora"]];
+    var rows = [["indice", "valor", "tipo", "data_hora"]];
     items.slice().reverse().forEach(function (it, i) {
-      rows.push([i + 1, it.value, it.qty || 1, it.type === "barra" ? "codigo_de_barras" : "qr_code", it.time]);
+      rows.push([i + 1, it.value, it.type === "barra" ? "codigo_de_barras" : "qr_code", it.time]);
     });
     var csv = "\uFEFF" + rows.map(function (r) { return r.map(esc).join(","); }).join("\r\n");
     download("centralux-qr-" + stamp() + ".csv", csv, "text/csv;charset=utf-8");
