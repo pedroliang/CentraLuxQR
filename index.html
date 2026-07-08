@@ -514,18 +514,30 @@
       "Total de códigos: *" + items.length + "*\n\n";
     var lines = items.slice().reverse().map(function (it, i) {
       var tipo = it.type === "barra" ? "Barras" : "QR";
-      return (i + 1) + ". " + it.value + "\n   (" + tipo + " — " + it.time + ")";
+      return (i + 1) + ". " + it.value + " (" + tipo + " " + it.time + ")";
     });
     return header + lines.join("\n");
+  }
+
+  function shareViaLink(text) {
+    // fallback por URL: navegadores/WhatsApp cortam URLs muito longas
+    var MAX = 4000;
+    if (text.length > MAX) text = text.slice(0, MAX) + "\n\n… (relatório cortado pelo limite do link — a lista completa sai pelo Exportar TXT)";
+    window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
   }
 
   btnWhats.addEventListener("click", function () {
     if (!items.length) return;
     var text = buildReport();
-    // WhatsApp limita o tamanho da URL; trunca relatorios muito grandes
-    var MAX = 60000;
-    if (text.length > MAX) text = text.slice(0, MAX) + "\n\n… (relatório truncado)";
-    window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+    // compartilhamento nativo: envia o texto COMPLETO, sem limite de URL
+    if (navigator.share) {
+      navigator.share({ text: text }).catch(function (err) {
+        if (err && err.name === "AbortError") return; // usuário cancelou
+        shareViaLink(text);
+      });
+    } else {
+      shareViaLink(text);
+    }
   });
 
   btnClear.addEventListener("click", function () {
