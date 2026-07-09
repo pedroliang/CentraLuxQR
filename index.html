@@ -50,6 +50,14 @@
   .seg button { font-size: 13px; font-weight: 600; padding: 10px 8px; border-radius: 9px; border: none; cursor: pointer; background: transparent; color: #9aa0a6; transition: background 0.15s, color 0.15s; }
   .seg button.active { background: oklch(0.72 0.14 165); color: #0d0f12; }
 
+  .seglist button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 8px; font-size: 14px; }
+  .seglist button .lc { font-size: 11px; font-weight: 700; background: #232830; color: #9aa0a6; padding: 2px 9px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+  .seglist button.active .lc { background: rgba(13,15,18,0.28); color: #0d0f12; }
+  .seglist #list2Btn.active { background: oklch(0.74 0.13 300); }
+  .app.lista2 .bigcounter { background: oklch(0.24 0.05 300); border-color: oklch(0.46 0.1 300); }
+  .app.lista2 .bigcounter .label { color: oklch(0.78 0.1 300); }
+  .app.lista2 .bigcounter .num { color: oklch(0.85 0.13 300); text-shadow: 0 0 24px oklch(0.62 0.13 300 / 0.5); }
+
   .norepeat { display: flex; align-items: center; gap: 10px; padding: 11px 14px; background: #14171c; border: 1px solid #1e222a; border-radius: 12px; cursor: pointer; user-select: none; }
   .norepeat input { width: 18px; height: 18px; accent-color: oklch(0.72 0.14 165); cursor: pointer; flex-shrink: 0; margin: 0; }
   .norepeat span { font-size: 13px; color: #c4c9cf; }
@@ -129,6 +137,10 @@
     </div>
 
     <div class="controls">
+      <div class="seg seglist">
+        <button id="list1Btn" class="active">Produto 1 <span class="lc" id="count1">0</span></button>
+        <button id="list2Btn">Produto 2 <span class="lc" id="count2">0</span></button>
+      </div>
       <div class="seg">
         <button id="modeQr" class="active">QR Code</button>
         <button id="modeBar">Código de Barras</button>
@@ -144,7 +156,7 @@
     </div>
 
     <div class="bigcounter">
-      <div class="label">Códigos registrados</div>
+      <div class="label" id="bigLabel">Produto 1 — códigos registrados</div>
       <div class="num" id="bigCount">0</div>
     </div>
 
@@ -160,7 +172,7 @@
   </div>
 
   <div class="hist-head">
-    <div class="t">Histórico</div>
+    <div class="t" id="histTitle">Histórico — Produto 1</div>
     <div class="c"><span id="countList">0</span> itens</div>
   </div>
 
@@ -174,7 +186,7 @@
       <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="flex-shrink:0;"><path d="M12.04 2c-5.46 0-9.9 4.44-9.9 9.9 0 1.75.46 3.45 1.32 4.95L2 22l5.3-1.39c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.9-4.44 9.9-9.9 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2m0 1.67c2.2 0 4.26.86 5.82 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.32a8.19 8.19 0 0 1-1.26-4.38c.01-4.54 3.7-8.24 8.25-8.24M8.53 7.33c-.16 0-.43.06-.66.31-.22.25-.87.86-.87 2.07 0 1.22.89 2.39 1 2.56.14.17 1.76 2.67 4.25 3.73.59.27 1.05.42 1.41.53.59.19 1.13.16 1.56.1.48-.07 1.46-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.07-.1-.23-.16-.48-.27-.25-.14-1.47-.74-1.69-.82-.23-.08-.37-.12-.56.12-.16.25-.64.81-.78.97-.15.17-.29.19-.53.07-.26-.13-1.06-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72-.12-.24-.01-.39.11-.5.11-.11.27-.29.37-.44.13-.14.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.11-.56-1.35-.77-1.84-.2-.48-.4-.42-.56-.43-.14 0-.3-.01-.47-.01"/></svg>
       WhatsApp
     </button>
-    <button id="btnClear" class="danger" disabled>Resetar tudo</button>
+    <button id="btnClear" class="danger" disabled>Resetar lista</button>
   </div>
 
 </div>
@@ -187,8 +199,10 @@
   var LS_MODE = "centralux_qr_mode";
   var LS_NOREPEAT = "centralux_qr_norepeat";
   var LS_BEEP = "centralux_qr_beep";
+  var LS_LIST = "centralux_qr_activelist";
 
   var items = [];
+  var activeList = 1;         // 1 = Produto 1 | 2 = Produto 2
   var mode = "qr";            // "qr" | "barra"
   var noRepeat = false;
   var beepOn = false;
@@ -229,6 +243,10 @@
   var bigCount = $("bigCount");
   var btnTxt = $("btnTxt"), btnWhats = $("btnWhats"), btnClear = $("btnClear");
   var modeQrBtn = $("modeQr"), modeBarBtn = $("modeBar");
+  var list1Btn = $("list1Btn"), list2Btn = $("list2Btn");
+  var count1El = $("count1"), count2El = $("count2");
+  var bigLabel = $("bigLabel"), histTitle = $("histTitle");
+  var appEl = document.querySelector(".app");
   var noRepeatCb = $("noRepeat");
   var beepCb = $("beepOn");
   var subtitle = $("subtitle");
@@ -239,12 +257,29 @@
       var saved = JSON.parse(localStorage.getItem(LS_ITEMS) || "[]");
       if (Array.isArray(saved)) items = saved;
     } catch (e) {}
+    // migração: itens antigos sem campo "list" entram no Produto 1
+    items.forEach(function (it) { if (it.list !== 1 && it.list !== 2) it.list = 1; });
+    activeList = localStorage.getItem(LS_LIST) === "2" ? 2 : 1;
     mode = localStorage.getItem(LS_MODE) === "barra" ? "barra" : "qr";
     noRepeat = localStorage.getItem(LS_NOREPEAT) === "1";
     beepOn = localStorage.getItem(LS_BEEP) === "1";
   }
   function persistItems() {
     try { localStorage.setItem(LS_ITEMS, JSON.stringify(items)); } catch (e) {}
+  }
+
+  // Listas separadas
+  function itemsOf(list) {
+    return items.filter(function (it) { return it.list === list; });
+  }
+  function activeItems() { return itemsOf(activeList); }
+
+  function applyListUI() {
+    list1Btn.classList.toggle("active", activeList === 1);
+    list2Btn.classList.toggle("active", activeList === 2);
+    appEl.classList.toggle("lista2", activeList === 2);
+    bigLabel.textContent = "Produto " + activeList + " — códigos registrados";
+    histTitle.textContent = "Histórico — Produto " + activeList;
   }
 
   // UI
@@ -255,10 +290,13 @@
   }
 
   function renderList() {
-    countTop.textContent = items.length;
-    countList.textContent = items.length;
-    bigCount.textContent = items.length;
-    var isEmpty = items.length === 0;
+    var list = activeItems();
+    count1El.textContent = itemsOf(1).length;
+    count2El.textContent = itemsOf(2).length;
+    countTop.textContent = list.length;
+    countList.textContent = list.length;
+    bigCount.textContent = list.length;
+    var isEmpty = list.length === 0;
     btnTxt.disabled = isEmpty;
     btnWhats.disabled = isEmpty;
     btnClear.disabled = isEmpty;
@@ -268,13 +306,13 @@
     for (var i = 0; i < nodes.length; i++) nodes[i].remove();
     emptyEl.style.display = isEmpty ? "" : "none";
 
-    items.forEach(function (it, idx) {
+    list.forEach(function (it, idx) {
       var div = document.createElement("div");
       div.className = "item";
 
       var n = document.createElement("div");
       n.className = "n";
-      n.textContent = items.length - idx;
+      n.textContent = list.length - idx;
 
       var body = document.createElement("div");
       body.className = "body";
@@ -446,9 +484,9 @@
     lastDetectVal = value;
     lastDetectAt = now;
 
-    // checkbox: não repetir códigos -> registra apenas UMA vez, ignora repetidas
+    // checkbox: não repetir códigos -> registra apenas UMA vez POR LISTA, ignora repetidas
     if (noRepeat) {
-      var exists = items.some(function (it) { return it.value === value; });
+      var exists = activeItems().some(function (it) { return it.value === value; });
       if (exists) {
         showDupMsg();
         playBeep("dup");
@@ -462,7 +500,7 @@
     var time = pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() + " " +
                pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
 
-    items.unshift({ value: value, time: time, ts: now, type: type });
+    items.unshift({ value: value, time: time, ts: now, type: type, list: activeList });
     persistItems();
 
     lastValueEl.textContent = value;
@@ -498,21 +536,23 @@
   }
 
   btnTxt.addEventListener("click", function () {
-    if (!items.length) return;
-    var lines = items.slice().reverse().map(function (it, i) {
+    var list = activeItems();
+    if (!list.length) return;
+    var lines = list.slice().reverse().map(function (it, i) {
       return (i + 1) + ". [" + it.time + "] " + it.value;
     });
-    download("centralux-qr-" + stamp() + ".txt", lines.join("\n"), "text/plain;charset=utf-8");
+    download("centralux-qr-produto" + activeList + "-" + stamp() + ".txt", lines.join("\n"), "text/plain;charset=utf-8");
   });
 
   function buildReport() {
+    var list = activeItems();
     var d = new Date();
     var pad = function (n) { return String(n).padStart(2, "0"); };
-    var header = "*Relatório Centralux QR*\n" +
+    var header = "*Relatório Centralux QR — Produto " + activeList + "*\n" +
       "Gerado em " + pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() +
       " às " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + "\n" +
-      "Total de códigos: *" + items.length + "*\n\n";
-    var lines = items.slice().reverse().map(function (it, i) {
+      "Total de códigos: *" + list.length + "*\n\n";
+    var lines = list.slice().reverse().map(function (it, i) {
       var tipo = it.type === "barra" ? "Barras" : "QR";
       return (i + 1) + ". " + it.value + " (" + tipo + " " + it.time + ")";
     });
@@ -527,7 +567,7 @@
   }
 
   btnWhats.addEventListener("click", function () {
-    if (!items.length) return;
+    if (!activeItems().length) return;
     var text = buildReport();
     // compartilhamento nativo: envia o texto COMPLETO, sem limite de URL
     if (navigator.share) {
@@ -541,13 +581,26 @@
   });
 
   btnClear.addEventListener("click", function () {
-    if (!items.length) return;
-    if (!window.confirm("Resetar tudo? Isso apaga todos os códigos e zera os contadores.")) return;
-    items = [];
+    if (!activeItems().length) return;
+    if (!window.confirm("Resetar Produto " + activeList + "? Isso apaga os códigos e zera o contador desta lista. A outra lista não será afetada.")) return;
+    items = items.filter(function (it) { return it.list !== activeList; });
     persistItems();
     lastRead.classList.remove("show");
     renderList();
   });
+
+  // Troca de lista (Produto 1 / Produto 2)
+  function setActiveList(n) {
+    if (activeList === n) return;
+    activeList = n;
+    localStorage.setItem(LS_LIST, String(n));
+    lastRead.classList.remove("show");
+    dupMsg.classList.remove("show");
+    applyListUI();
+    renderList();
+  }
+  list1Btn.addEventListener("click", function () { setActiveList(1); });
+  list2Btn.addEventListener("click", function () { setActiveList(2); });
 
   // Modo e checkbox
   modeQrBtn.addEventListener("click", function () {
@@ -580,6 +633,7 @@
   loadState();
   noRepeatCb.checked = noRepeat;
   beepCb.checked = beepOn;
+  applyListUI();
   applyModeUI();
   renderList();
 })();
