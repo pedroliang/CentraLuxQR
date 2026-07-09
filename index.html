@@ -71,9 +71,12 @@
   .dupmsg { margin-top: 10px; display: none; align-items: center; gap: 10px; padding: 10px 14px; background: #241d10; border: 1px solid #4a3a15; border-radius: 12px; animation: slidein 0.25s ease; font-size: 12.5px; color: #e0b95c; }
   .dupmsg.show { display: flex; }
 
-  .hist-head { padding: 18px 16px 8px; display: flex; align-items: baseline; justify-content: space-between; }
-  .hist-head .t { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .hist-head { padding: 18px 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .hist-head .t { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; flex: 1; }
   .hist-head .c { font-size: 12px; color: #6b7280; }
+  .copyall { font-size: 11.5px; font-weight: 600; color: #9aa0a6; background: #1c2027; border: 1px solid #262b33; padding: 7px 12px; border-radius: 9px; cursor: pointer; flex-shrink: 0; }
+  .copyall:disabled { opacity: 0.4; cursor: default; }
+  .copyall.done { color: #0d0f12; background: oklch(0.78 0.14 165); border-color: oklch(0.78 0.14 165); }
 
   .hist { flex: 1; padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
   .empty { padding: 40px 20px; text-align: center; color: #4b5563; font-size: 13px; border: 1px dashed #23272e; border-radius: 14px; }
@@ -173,6 +176,7 @@
 
   <div class="hist-head">
     <div class="t" id="histTitle">Histórico — Produto 1</div>
+    <button class="copyall" id="btnCopyAll" disabled>Copiar tudo</button>
     <div class="c"><span id="countList">0</span> itens</div>
   </div>
 
@@ -246,6 +250,7 @@
   var list1Btn = $("list1Btn"), list2Btn = $("list2Btn");
   var count1El = $("count1"), count2El = $("count2");
   var bigLabel = $("bigLabel"), histTitle = $("histTitle");
+  var btnCopyAll = $("btnCopyAll");
   var appEl = document.querySelector(".app");
   var noRepeatCb = $("noRepeat");
   var beepCb = $("beepOn");
@@ -300,6 +305,7 @@
     btnTxt.disabled = isEmpty;
     btnWhats.disabled = isEmpty;
     btnClear.disabled = isEmpty;
+    btnCopyAll.disabled = isEmpty;
 
     // limpa lista (mantém o placeholder de vazio)
     var nodes = histEl.querySelectorAll(".item");
@@ -587,6 +593,45 @@
     persistItems();
     lastRead.classList.remove("show");
     renderList();
+  });
+
+  // Copiar histórico da lista ativa
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    // fallback para navegadores antigos
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      try {
+        document.execCommand("copy") ? resolve() : reject();
+      } catch (e) { reject(e); }
+      document.body.removeChild(ta);
+    });
+  }
+
+  btnCopyAll.addEventListener("click", function () {
+    var list = activeItems();
+    if (!list.length) return;
+    var lines = list.slice().reverse().map(function (it, i) {
+      return (i + 1) + ". [" + it.time + "] " + it.value;
+    });
+    copyText(lines.join("\n")).then(function () {
+      btnCopyAll.textContent = "Copiado!";
+      btnCopyAll.classList.add("done");
+      setTimeout(function () {
+        btnCopyAll.textContent = "Copiar tudo";
+        btnCopyAll.classList.remove("done");
+      }, 1500);
+    }).catch(function () {
+      btnCopyAll.textContent = "Erro ao copiar";
+      setTimeout(function () { btnCopyAll.textContent = "Copiar tudo"; }, 1500);
+    });
   });
 
   // Troca de lista (Produto 1 / Produto 2)
