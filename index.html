@@ -580,21 +580,30 @@
     waToastTimer = setTimeout(function () { waToastEl.style.display = "none"; }, 8000);
   }
 
+  function abrirAppWhats() {
+    var ua = navigator.userAgent || "";
+    if (/android/i.test(ua)) {
+      window.location.href = "intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;end";
+    } else {
+      window.location.href = "whatsapp://send";
+    }
+  }
+
   btnWhats.addEventListener("click", function () {
     var list = activeItems();
     if (!list.length) return;
     var text = buildReport();
-    // copia o relatório COMPLETO (a área de transferência não tem limite)
+    // garantia: copia o relatório COMPLETO (área de transferência não corta)
     copyText(text).catch(function () {});
-    showWaToast("✅ Relatório copiado — " + list.length + " códigos. Cole na conversa do WhatsApp.");
-    // abre o APLICATIVO do WhatsApp; sem redirecionamento automático para a web
-    var ua = navigator.userAgent || "";
-    if (/android/i.test(ua)) {
-      // formato intent:// — jeito nativo do Chrome/Android abrir o app instalado
-      window.location.href = "intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;end";
+    showWaToast("✅ Relatório copiado (" + list.length + " códigos). Se a mensagem chegar cortada, apague e segure para COLAR o texto completo.");
+    if (navigator.share) {
+      // menu nativo: permite escolher o grupo/contato com o texto já preenchido
+      navigator.share({ text: text }).catch(function (err) {
+        if (err && err.name === "AbortError") return; // usuário cancelou
+        abrirAppWhats(); // não deu: abre o app direto para colar
+      });
     } else {
-      // iPhone / WhatsApp Desktop no PC
-      window.location.href = "whatsapp://send";
+      abrirAppWhats();
     }
   });
 
