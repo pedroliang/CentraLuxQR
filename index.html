@@ -565,24 +565,29 @@
     return header + lines.join("\n");
   }
 
-  function openWhatsAppFallback(text) {
+  function whatsUrlComTexto(text) {
     // último recurso: link com texto (navegadores cortam URLs muito longas)
     var MAX = 4000;
     if (text.length > MAX) text = text.slice(0, MAX) + "\n\n… (relatório cortado — use o botão Copiar tudo e cole na conversa)";
-    window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+    return "https://wa.me/?text=" + encodeURIComponent(text);
   }
 
   btnWhats.addEventListener("click", function () {
     var list = activeItems();
     if (!list.length) return;
     var text = buildReport();
-    // Compartilhar/link cortam textos longos; a área de transferência NÃO tem limite.
-    // Copia o relatório completo e abre o WhatsApp para o usuário colar.
+    // Abre a aba JÁ no clique (senão o navegador bloqueia o popup
+    // depois do alert); o destino é definido em seguida.
+    var win = window.open("", "_blank");
     copyText(text).then(function () {
       alert("Relatório completo copiado — " + list.length + " códigos!\n\nO WhatsApp vai abrir: toque e segure no campo de mensagem, escolha COLAR e envie.");
-      window.open("https://wa.me/", "_blank");
+      if (win) { win.location = "https://wa.me/"; }
+      else { window.location.href = "https://wa.me/"; }
     }).catch(function () {
-      openWhatsAppFallback(text);
+      // não conseguiu copiar: manda o texto pelo link mesmo (pode cortar)
+      var url = whatsUrlComTexto(text);
+      if (win) { win.location = url; }
+      else { window.location.href = url; }
     });
   });
 
