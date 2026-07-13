@@ -71,6 +71,8 @@
   .dupmsg { margin-top: 10px; display: none; align-items: center; gap: 10px; padding: 10px 14px; background: #241d10; border: 1px solid #4a3a15; border-radius: 12px; animation: slidein 0.25s ease; font-size: 12.5px; color: #e0b95c; }
   .dupmsg.show { display: flex; }
 
+  .watoast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom)); background: #14251b; border: 1px solid #2e4d3a; color: #7fe0a8; padding: 12px 18px; border-radius: 12px; font-size: 13px; z-index: 50; max-width: 90%; text-align: center; animation: slidein 0.25s ease; box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
+
   .hist-head { padding: 18px 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .hist-head .t { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; flex: 1; }
   .hist-head .c { font-size: 12px; color: #6b7280; }
@@ -566,29 +568,38 @@
   }
 
   function whatsUrlComTexto(text) {
-    // último recurso: link com texto (navegadores cortam URLs muito longas)
+    // fallback: link web com texto (navegadores cortam URLs muito longas)
     var MAX = 4000;
     if (text.length > MAX) text = text.slice(0, MAX) + "\n\n… (relatório cortado — use o botão Copiar tudo e cole na conversa)";
     return "https://wa.me/?text=" + encodeURIComponent(text);
+  }
+
+  var waToastEl = null, waToastTimer = null;
+  function showWaToast(msg) {
+    if (!waToastEl) {
+      waToastEl = document.createElement("div");
+      waToastEl.className = "watoast";
+      document.body.appendChild(waToastEl);
+    }
+    waToastEl.textContent = msg;
+    waToastEl.style.display = "";
+    if (waToastTimer) clearTimeout(waToastTimer);
+    waToastTimer = setTimeout(function () { waToastEl.style.display = "none"; }, 8000);
   }
 
   btnWhats.addEventListener("click", function () {
     var list = activeItems();
     if (!list.length) return;
     var text = buildReport();
-    // Abre a aba JÁ no clique (senão o navegador bloqueia o popup
-    // depois do alert); o destino é definido em seguida.
-    var win = window.open("", "_blank");
-    copyText(text).then(function () {
-      alert("Relatório completo copiado — " + list.length + " códigos!\n\nO WhatsApp vai abrir: toque e segure no campo de mensagem, escolha COLAR e envie.");
-      if (win) { win.location = "https://wa.me/"; }
-      else { window.location.href = "https://wa.me/"; }
-    }).catch(function () {
-      // não conseguiu copiar: manda o texto pelo link mesmo (pode cortar)
-      var url = whatsUrlComTexto(text);
-      if (win) { win.location = url; }
-      else { window.location.href = url; }
-    });
+    // copia o relatório COMPLETO (a área de transferência não tem limite)
+    copyText(text).catch(function () {});
+    showWaToast("✅ Relatório copiado — " + list.length + " códigos. Cole na conversa do WhatsApp.");
+    // abre o APLICATIVO do WhatsApp (deep link), ainda dentro do gesto do clique
+    window.location.href = "whatsapp://send";
+    // se o app não abrir em ~2s (ex.: sem app instalado), cai para o WhatsApp Web
+    setTimeout(function () {
+      if (!document.hidden) window.location.href = whatsUrlComTexto(text);
+    }, 2000);
   });
 
   btnClear.addEventListener("click", function () {
