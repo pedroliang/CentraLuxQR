@@ -602,10 +602,14 @@
       // PASSO 2: abre o WhatsApp pelo menu nativo (o que sempre abre no celular);
       // o cabeçalho curto vai preenchido e o relatório completo é COLADO pelo usuário
       setWaButton(0);
-      showWaToast("Escolha a conversa e segure o campo de mensagem para COLAR o relatório.");
-      var header = "*Relatório Centralux QR — Produto " + activeList + "* (" + list.length + " códigos)\n\n";
+      showWaToast("Escolha a conversa. Se a mensagem chegar cortada, segure o campo e COLE o relatório completo.");
+      // compartilha o relatório COMPLETO (com cabeçalho); a cópia do passo 1 fica de reserva
+      var lines2 = list.slice().reverse().map(function (it, i) {
+        return (i + 1) + ". [" + it.time + "] " + it.value;
+      });
+      var full = "*Relatório Centralux QR — Produto " + activeList + "* (" + list.length + " códigos)\n\n" + lines2.join("\n");
       if (navigator.share) {
-        navigator.share({ text: header }).catch(function (err) {
+        navigator.share({ text: full }).catch(function (err) {
           if (err && err.name === "AbortError") return; // usuário cancelou
           abrirAppWhats();
         });
