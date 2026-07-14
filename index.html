@@ -599,9 +599,19 @@
         showWaToast("Não consegui copiar automaticamente. Use o botão Copiar tudo, acima do histórico.");
       });
     } else {
-      // PASSO 2: abre o aplicativo do WhatsApp
+      // PASSO 2: abre o WhatsApp pelo menu nativo (o que sempre abre no celular);
+      // o cabeçalho curto vai preenchido e o relatório completo é COLADO pelo usuário
       setWaButton(0);
-      abrirAppWhats();
+      showWaToast("Escolha a conversa e segure o campo de mensagem para COLAR o relatório.");
+      var header = "*Relatório Centralux QR — Produto " + activeList + "* (" + list.length + " códigos)\n\n";
+      if (navigator.share) {
+        navigator.share({ text: header }).catch(function (err) {
+          if (err && err.name === "AbortError") return; // usuário cancelou
+          abrirAppWhats();
+        });
+      } else {
+        abrirAppWhats();
+      }
     }
   });
 
