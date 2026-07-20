@@ -234,12 +234,28 @@
       ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E,
       ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
       ZXing.BarcodeFormat.CODE_93, ZXing.BarcodeFormat.ITF,
-      ZXing.BarcodeFormat.CODABAR
+      ZXing.BarcodeFormat.CODABAR,
+      ZXing.BarcodeFormat.DATA_MATRIX
     ]);
     hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
     zxingReader = new ZXing.MultiFormatReader();
     zxingReader.setHints(hints);
     return zxingReader;
+  }
+
+  // Leitor DataMatrix/QR via ZXing — usado no modo QR como reforço
+  // (etiquetas dos Correios usam DataMatrix, que o jsQR não lê)
+  var matrixReader = null, lastMatrixDecode = 0;
+  function getMatrixReader() {
+    if (matrixReader || typeof ZXing === "undefined") return matrixReader;
+    var hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+      ZXing.BarcodeFormat.DATA_MATRIX, ZXing.BarcodeFormat.QR_CODE
+    ]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    matrixReader = new ZXing.MultiFormatReader();
+    matrixReader.setHints(hints);
+    return matrixReader;
   }
 
   // Elementos
@@ -496,7 +512,23 @@
       var imageData;
       try { imageData = ctx.getImageData(0, 0, w, h); } catch (e) { return; }
       var code = window.jsQR(imageData.data, w, h, { inversionAttempts: "dontInvert" });
-      if (code && code.data) onDetect(code.data, "qr");
+      if (code && code.data) { onDetect(code.data, "qr"); return; }
+      // não achou QR: tenta DataMatrix (Correios) com ZXing, a cada ~200ms
+      var nowM = Date.now();
+      if (nowM - lastMatrixDecode < 200) return;
+      lastMatrixDecode = nowM;
+      var mReader = getMatrixReader();
+      if (!mReader) return;
+      try {
+        var mSource = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+        var mBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(mSource));
+        var mResult = mReader.decode(mBitmap);
+        if (mResult && mResult.getText()) onDetect(mResult.getText(), "qr");
+      } catch (e) {
+        // nenhum código no frame — normal
+      } finally {
+        try { mReader.reset(); } catch (e) {}
+      }
     } else {
       // ZXing é mais pesado: decodifica a cada ~180ms
       var now = Date.now();
