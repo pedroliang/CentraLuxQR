@@ -42,6 +42,7 @@
 
   .torch { position: absolute; right: 10px; bottom: 10px; width: 42px; height: 42px; border-radius: 12px; border: 1px solid #262b33; background: rgba(20,23,28,0.75); backdrop-filter: blur(4px); font-size: 18px; cursor: pointer; z-index: 5; }
   .torch.on { background: oklch(0.78 0.14 165); border-color: oklch(0.78 0.14 165); }
+  .zoomctl { position: absolute; left: 10px; bottom: 10px; height: 42px; min-width: 48px; border-radius: 12px; border: 1px solid #262b33; background: rgba(20,23,28,0.75); backdrop-filter: blur(4px); font-size: 13px; font-weight: 700; color: #e8eaed; cursor: pointer; z-index: 5; }
 
   .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 28px; text-align: center; background: #0d0f12; }
   .overlay .msg { font-size: 14px; color: #9aa0a6; line-height: 1.5; }
@@ -136,6 +137,7 @@
       <div class="flash" id="flash"></div>
 
       <button class="torch" id="btnTorch" style="display:none;" aria-label="Lanterna">🔦</button>
+      <button class="zoomctl" id="btnZoom" style="display:none;" aria-label="Zoom">1×</button>
 
       <div class="overlay" id="idleOverlay">
         <div class="msg">Toque para abrir a câmera<br>e escanear códigos</div>
@@ -464,6 +466,9 @@
     torchOn = false;
     btnTorch.classList.remove("on");
     btnTorch.style.display = "none";
+    btnZoom.style.display = "none";
+    zoomIdx = 0;
+    btnZoom.textContent = "1×";
   }
 
   // Ajusta foco contínuo e mostra o botão de lanterna se o aparelho suportar.
@@ -477,7 +482,23 @@
       track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(function () {});
     }
     if (caps.torch) btnTorch.style.display = "";
+    zoomCaps = caps.zoom && caps.zoom.max > 1 ? caps.zoom : null;
+    if (zoomCaps) btnZoom.style.display = "";
   }
+
+  // Zoom: encher o quadro com o código dá mais pixels por módulo —
+  // essencial para QR denso do Flex com falha de impressão.
+  var zoomCaps = null, zoomIdx = 0, ZOOM_STEPS = [1, 1.5, 2];
+  var btnZoom = $("btnZoom");
+  btnZoom.addEventListener("click", function () {
+    var track = stream && stream.getVideoTracks()[0];
+    if (!track || !zoomCaps) return;
+    zoomIdx = (zoomIdx + 1) % ZOOM_STEPS.length;
+    var z = Math.min(Math.max(ZOOM_STEPS[zoomIdx], zoomCaps.min || 1), zoomCaps.max);
+    track.applyConstraints({ advanced: [{ zoom: z }] }).then(function () {
+      btnZoom.textContent = (Math.round(z * 10) / 10) + "×";
+    }).catch(function () {});
+  });
 
   var torchOn = false;
   var btnTorch = $("btnTorch");
@@ -558,8 +579,7 @@
   // que usa object-fit: cover). Isso aumenta a nitidez efetiva do código,
   // acelera a decodificação e evita ruído das bordas.
   var MAX_SIDE = 960;
-  var useAltBinarizer = false;
-  function grabFrame() {
+  function grabFrame(filter) {
     var w = video.videoWidth, h = video.videoHeight;
     if (!w || !h) return 0;
     var sq = Math.min(w, h);
@@ -567,17 +587,43 @@
     var side = Math.min(sq, MAX_SIDE);
     canvas.width = side; canvas.height = side;
     var ctx = canvas.getContext("2d", { willReadFrequently: true });
+    var hasFilter = typeof ctx.filter === "string";
+    if (hasFilter) ctx.filter = filter || "none";
     ctx.drawImage(video, sx, sy, sq, sq, 0, 0, side, side);
+    if (hasFilter) ctx.filter = "none";
     return side;
   }
+
+  // Detector nativo do navegador (no Android, usa o ML Kit do Google).
+  // É muito mais tolerante a códigos danificados/borrados que jsQR/ZXing —
+  // resolve o QR do Flex com falha de impressão.
+  var bdQr = null, bdBar = null, bdBusy = false, lastBdRun = 0;
+  (function initDetector() {
+    if (!("BarcodeDetector" in window) || !window.BarcodeDetector.getSupportedFormats) return;
+    window.BarcodeDetector.getSupportedFormats().then(function (fmts) {
+      function pick(want) { return want.filter(function (f) { return fmts.indexOf(f) !== -1; }); }
+      var q = pick(["qr_code", "data_matrix"]);
+      var b = pick(["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "code_93", "itf", "codabar", "data_matrix"]);
+      try {
+        if (q.length) bdQr = new window.BarcodeDetector({ formats: q });
+        if (b.length) bdBar = new window.BarcodeDetector({ formats: b });
+      } catch (e) {}
+    }).catch(function () {});
+  })();
+
+  var CONTRAST_FILTER = "grayscale(1) contrast(1.8) brightness(1.1)";
+  var binCycle = 0;
   function decodeZxing(reader) {
-    // Alterna binarizadores: Hybrid lida melhor com iluminação irregular;
-    // GlobalHistogram com etiquetas brilhosas / baixo contraste (Flex).
+    // Cicla estratégias: 0) Hybrid (iluminação irregular)
+    // 1) GlobalHistogram (etiqueta brilhosa/baixo contraste)
+    // 2) Hybrid sobre imagem com contraste reforçado (impressão falhada)
+    var step = binCycle % 3;
+    binCycle++;
+    if (step === 2) grabFrame(CONTRAST_FILTER);
     var source = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-    var binarizer = useAltBinarizer
+    var binarizer = step === 1
       ? new ZXing.GlobalHistogramBinarizer(source)
       : new ZXing.HybridBinarizer(source);
-    useAltBinarizer = !useAltBinarizer;
     return reader.decode(new ZXing.BinaryBitmap(binarizer));
   }
 
@@ -587,6 +633,18 @@
     var side = grabFrame();
     if (!side) return;
     var ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+    // 1ª tentativa: detector nativo (o mais robusto), a cada ~100ms
+    var det = mode === "qr" ? bdQr : bdBar;
+    if (det && !bdBusy && Date.now() - lastBdRun >= 100) {
+      bdBusy = true;
+      lastBdRun = Date.now();
+      var typeB = mode === "qr" ? "qr" : "barra";
+      det.detect(canvas).then(function (codes) {
+        bdBusy = false;
+        if (codes && codes.length && codes[0].rawValue) onDetect(codes[0].rawValue, typeB);
+      }).catch(function () { bdBusy = false; });
+    }
 
     if (mode === "qr") {
       if (typeof window.jsQR !== "function") return;
