@@ -485,10 +485,29 @@
     var track = stream && stream.getVideoTracks()[0];
     if (!track) return;
     var next = !torchOn;
-    track.applyConstraints({ advanced: [{ torch: next }] }).then(function () {
+
+    function applied() {
+      // confere se a lanterna realmente mudou de estado
+      var s = {};
+      try { s = track.getSettings ? track.getSettings() : {}; } catch (e) {}
+      if (typeof s.torch === "boolean" && s.torch !== next) {
+        showWaToast("O navegador aceitou o comando mas não " + (next ? "acendeu" : "apagou") + " a lanterna neste aparelho.");
+        return;
+      }
       torchOn = next;
       btnTorch.classList.toggle("on", torchOn);
-    }).catch(function () {});
+    }
+
+    track.applyConstraints({ advanced: [{ torch: next }] })
+      .then(applied)
+      .catch(function () {
+        // alguns navegadores exigem o formato sem "advanced"
+        track.applyConstraints({ torch: next })
+          .then(applied)
+          .catch(function () {
+            showWaToast("Este navegador não permite controlar a lanterna. Tente o Chrome atualizado, ou acenda a lanterna pelo próprio celular.");
+          });
+      });
   });
 
   function startCamera() {
