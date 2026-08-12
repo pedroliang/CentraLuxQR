@@ -182,10 +182,6 @@
         <button id="modeBar">Código de Barras</button>
       </div>
       <label class="norepeat">
-        <input type="checkbox" id="noRepeat">
-        <span>Não repetir códigos na listagem</span>
-      </label>
-      <label class="norepeat">
         <input type="checkbox" id="beepOn">
         <span>Bip sonoro ao ler código</span>
       </label>
@@ -201,7 +197,16 @@
       <button class="undo" id="btnUndo">Desfazer</button>
     </div>
 
-    <div class="dupmsg" id="dupMsg">⚠ Código já registrado — leitura ignorada.</div>
+  </div>
+
+  <div class="modal" id="dupModal" style="display:none;">
+    <div class="modal-card">
+      <div class="mt">⚠️ Código repetido!</div>
+      <div class="mhelp">Este código <b>já está na lista</b> e não foi registrado de novo:<br><br>
+        <span id="dupCode" style="word-break:break-all; color:#e0b95c;"></span>
+      </div>
+      <button class="btn-primary" id="dupOk">OK, continuar</button>
+    </div>
   </div>
 
   <div class="hist-head">
@@ -256,14 +261,12 @@
 
   var LS_ITEMS = "centralux_qr_items";
   var LS_MODE = "centralux_qr_mode";
-  var LS_NOREPEAT = "centralux_qr_norepeat";
   var LS_BEEP = "centralux_qr_beep";
   var LS_LIST = "centralux_qr_activelist";
 
   var items = [];
   var activeList = 1;         // 1 = Produto 1 | 2 = Produto 2
   var mode = "qr";            // "qr" | "barra"
-  var noRepeat = false;
   var beepOn = false;
   var audioCtx = null;
   var stream = null;
@@ -271,7 +274,6 @@
   var lastDetectVal = "";
   var lastDetectAt = 0;
   var lastBarcodeDecode = 0;
-  var dupTimer = null;
 
   // ZXing setup (leitura de código de barras)
   var zxingReader = null;
@@ -312,7 +314,7 @@
   var video = $("video"), canvas = $("canvas"), flash = $("flash");
   var idleOverlay = $("idleOverlay"), errorOverlay = $("errorOverlay"), errorMsg = $("errorMsg");
   var scanOverlay = $("scanOverlay");
-  var lastRead = $("lastRead"), lastValueEl = $("lastValue"), dupMsg = $("dupMsg");
+  var lastRead = $("lastRead"), lastValueEl = $("lastValue");
   var histEl = $("hist"), emptyEl = $("empty");
   var countTop = $("countTop"), countList = $("countList");
   var bigCount = $("bigCount");
@@ -323,7 +325,6 @@
   var bigLabel = $("bigLabel"), histTitle = $("histTitle");
   var btnCopyAll = $("btnCopyAll");
   var appEl = document.querySelector(".app");
-  var noRepeatCb = $("noRepeat");
   var beepCb = $("beepOn");
   var subtitle = $("subtitle");
 
@@ -339,7 +340,6 @@
     items.forEach(function (it) { if (typeof it.value === "string") it.value = fixMojibake(it.value); });
     activeList = localStorage.getItem(LS_LIST) === "2" ? 2 : 1;
     mode = localStorage.getItem(LS_MODE) === "barra" ? "barra" : "qr";
-    noRepeat = localStorage.getItem(LS_NOREPEAT) === "1";
     beepOn = localStorage.getItem(LS_BEEP) === "1";
   }
   function persistItems() {
@@ -490,12 +490,6 @@
       lastRead.classList.remove("show");
     }
     renderList();
-  }
-
-  function showDupMsg() {
-    dupMsg.classList.add("show");
-    if (dupTimer) clearTimeout(dupTimer);
-    dupTimer = setTimeout(function () { dupMsg.classList.remove("show"); }, 2000);
   }
 
   // Câmera
@@ -752,7 +746,20 @@
     return t.toUpperCase().replace(/[^0-9A-Z]/g, "");
   }
 
+  // Popup de código repetido
+  var dupModal = $("dupModal"), dupCode = $("dupCode"), dupModalOpen = false;
+  function showDupModal(value) {
+    dupCode.textContent = value;
+    dupModal.style.display = "flex";
+    dupModalOpen = true;
+  }
+  $("dupOk").addEventListener("click", function () {
+    dupModal.style.display = "none";
+    dupModalOpen = false;
+  });
+
   function onDetect(rawValue, type) {
+    if (dupModalOpen) return; // pausa leituras enquanto o aviso está na tela
     var value = fixMojibake(String(rawValue));
     var key = normKey(value);
     var now = Date.now();
@@ -761,15 +768,14 @@
     lastDetectVal = key;
     lastDetectAt = now;
 
-    // checkbox: não repetir códigos -> registra apenas UMA vez POR LISTA, ignora repetidas
-    if (noRepeat) {
-      var exists = activeItems().some(function (it) { return normKey(it.value) === key; });
-      if (exists) {
-        showDupMsg();
-        playBeep("dup");
-        if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
-        return;
-      }
+    // NUNCA registra o mesmo código duas vezes na lista ativa:
+    // avisa com popup e só continua depois do OK
+    var exists = activeItems().some(function (it) { return normKey(it.value) === key; });
+    if (exists) {
+      showDupModal(value);
+      playBeep("dup");
+      if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+      return;
     }
 
     var d = new Date();
@@ -1066,7 +1072,6 @@
     activeList = n;
     localStorage.setItem(LS_LIST, String(n));
     lastRead.classList.remove("show");
-    dupMsg.classList.remove("show");
     applyListUI();
     renderList();
   }
@@ -1083,10 +1088,6 @@
     mode = "barra";
     localStorage.setItem(LS_MODE, mode);
     applyModeUI();
-  });
-  noRepeatCb.addEventListener("change", function () {
-    noRepeat = noRepeatCb.checked;
-    localStorage.setItem(LS_NOREPEAT, noRepeat ? "1" : "0");
   });
   beepCb.addEventListener("change", function () {
     beepOn = beepCb.checked;
@@ -1132,7 +1133,6 @@
 
   // Init
   loadState();
-  noRepeatCb.checked = noRepeat;
   beepCb.checked = beepOn;
   applyListUI();
   applyModeUI();
