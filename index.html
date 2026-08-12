@@ -88,6 +88,10 @@
   .modal-card .mrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .modal-card .btn-primary { padding: 12px; }
   .btn-cancel { font-size: 14px; font-weight: 600; color: #e8eaed; background: #1c2027; border: 1px solid #262b33; padding: 12px; border-radius: 12px; cursor: pointer; }
+  .imptext { width: 100%; min-height: 84px; resize: vertical; background: #0f1216; border: 1px solid #1e222a; border-radius: 10px; color: #e8eaed; font: inherit; font-size: 13px; padding: 10px 12px; }
+  .imptext:focus { outline: none; border-color: oklch(0.72 0.14 165); }
+  .btn-paste { font-size: 14px; font-weight: 700; color: oklch(0.82 0.12 165); background: #14251b; border: 1px solid #2e4d3a; padding: 12px; border-radius: 12px; cursor: pointer; }
+  .mfile { font-size: 12px; color: #9aa0a6; background: none; border: none; text-decoration: underline; cursor: pointer; padding: 4px; }
 
   .watoast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom)); background: #14251b; border: 1px solid #2e4d3a; color: #7fe0a8; padding: 12px 18px; border-radius: 12px; font-size: 13px; z-index: 50; max-width: 90%; text-align: center; animation: slidein 0.25s ease; box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
 
@@ -221,13 +225,15 @@
 
   <div class="modal" id="importModal" style="display:none;">
     <div class="modal-card">
-      <div class="mt" id="impTitle">Importar contagem (.txt)</div>
+      <div class="mt" id="impTitle">Importar contagem</div>
       <div class="mhelp" id="impHelp">
-        <b>📱 Como pegar o arquivo do WhatsApp:</b><br>
-        1. No WhatsApp, <b>toque no arquivo .txt</b> recebido (ex.: <i>centralux-qr-produto1-...txt</i>) para baixá-lo.<br>
-        2. Volte aqui e toque em <b>Escolher arquivo</b>.<br>
-        3. Na janela que abrir, procure em <b>Downloads</b>, <b>Recentes</b> ou <b>Documentos</b> — normalmente é o <b>arquivo mais recente</b> da lista.
+        <b>📱 Como transferir a contagem:</b><br>
+        1. No outro celular, toque em <b>Copiar tudo</b> (acima do histórico) e envie a mensagem pelo WhatsApp.<br>
+        2. No WhatsApp deste celular, <b>segure a mensagem</b> recebida e toque em <b>Copiar</b>.<br>
+        3. Volte aqui e toque em <b>Colar</b>.
       </div>
+      <textarea id="impText" class="imptext" rows="4" placeholder="Os códigos copiados vão aparecer aqui..."></textarea>
+      <button class="btn-paste" id="impPaste">📋 Colar</button>
       <div class="mlabel">Continuar a contagem em:</div>
       <div class="seg">
         <button id="impList1" class="active">Produto 1</button>
@@ -235,8 +241,9 @@
       </div>
       <div class="mrow">
         <button class="btn-cancel" id="impCancel">Cancelar</button>
-        <button class="btn-primary" id="impPick">Escolher arquivo</button>
+        <button class="btn-primary" id="impGo">Importar</button>
       </div>
+      <button class="mfile" id="impPick">…ou escolher um arquivo .txt salvo no celular</button>
     </div>
   </div>
   <input type="file" id="importFile" accept=".txt,text/plain" style="display:none;">
@@ -824,18 +831,15 @@
     setImpTarget(activeList);
     importModal.style.display = "flex";
   });
-  // Quando o relatório chega via "Compartilhar via" do Android,
-  // o texto fica em pendingImportText e o modal vira "Importar agora".
-  var pendingImportText = null;
-  var impTitle = $("impTitle"), impHelp = $("impHelp"), impPickBtn = $("impPick");
+  var impTitle = $("impTitle"), impHelp = $("impHelp");
+  var impText = $("impText"), impPaste = $("impPaste"), impGo = $("impGo");
   function setImportModalShared(on) {
-    impTitle.textContent = on ? "📥 Relatório recebido!" : "Importar contagem (.txt)";
+    impTitle.textContent = on ? "📥 Relatório recebido!" : "Importar contagem";
     impHelp.style.display = on ? "none" : "";
-    impPickBtn.textContent = on ? "Importar agora" : "Escolher arquivo";
   }
   function closeImportModal() {
     importModal.style.display = "none";
-    pendingImportText = null;
+    impText.value = "";
     setImportModalShared(false);
   }
 
@@ -843,14 +847,35 @@
   importModal.addEventListener("click", function (e) {
     if (e.target === importModal) closeImportModal();
   });
-  impPickBtn.addEventListener("click", function () {
-    if (pendingImportText) {
-      var t = pendingImportText;
-      pendingImportText = null;
-      setImportModalShared(false);
-      importReport(t);
+
+  // Colar da área de transferência
+  impPaste.addEventListener("click", function () {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(function (t) {
+        if (t && t.trim()) impText.value = t;
+        else showWaToast("A área de transferência está vazia. No WhatsApp, segure a mensagem e toque em Copiar.");
+      }).catch(function () {
+        showWaToast("Não consegui colar automaticamente. Segure o campo acima e toque em Colar.");
+        impText.focus();
+      });
+    } else {
+      showWaToast("Segure o campo acima e toque em Colar.");
+      impText.focus();
+    }
+  });
+
+  // Importar o que foi colado
+  impGo.addEventListener("click", function () {
+    var t = impText.value;
+    if (!t || !t.trim()) {
+      showWaToast("Nada para importar — toque em Colar primeiro, ou cole os códigos no campo.");
       return;
     }
+    importReport(t);
+  });
+
+  // Alternativa: importar de um arquivo .txt salvo
+  $("impPick").addEventListener("click", function () {
     importFile.value = "";
     importFile.click();
   });
@@ -899,7 +924,7 @@
       added++;
     });
     persistItems();
-    importModal.style.display = "none";
+    closeImportModal();
     setActiveList(impTarget);
     applyListUI();
     renderList();
@@ -1098,7 +1123,7 @@
       });
     }).then(function (t) {
       if (!t || !t.trim()) return;
-      pendingImportText = t;
+      impText.value = t;
       setImpTarget(activeList);
       setImportModalShared(true);
       importModal.style.display = "flex";
