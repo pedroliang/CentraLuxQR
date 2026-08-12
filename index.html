@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Centralux QR</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d0f12">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <style>
@@ -217,8 +221,8 @@
 
   <div class="modal" id="importModal" style="display:none;">
     <div class="modal-card">
-      <div class="mt">Importar contagem (.txt)</div>
-      <div class="mhelp">
+      <div class="mt" id="impTitle">Importar contagem (.txt)</div>
+      <div class="mhelp" id="impHelp">
         <b>📱 Como pegar o arquivo do WhatsApp:</b><br>
         1. No WhatsApp, <b>toque no arquivo .txt</b> recebido (ex.: <i>centralux-qr-produto1-...txt</i>) para baixá-lo.<br>
         2. Volte aqui e toque em <b>Escolher arquivo</b>.<br>
@@ -820,11 +824,33 @@
     setImpTarget(activeList);
     importModal.style.display = "flex";
   });
-  $("impCancel").addEventListener("click", function () { importModal.style.display = "none"; });
+  // Quando o relatório chega via "Compartilhar via" do Android,
+  // o texto fica em pendingImportText e o modal vira "Importar agora".
+  var pendingImportText = null;
+  var impTitle = $("impTitle"), impHelp = $("impHelp"), impPickBtn = $("impPick");
+  function setImportModalShared(on) {
+    impTitle.textContent = on ? "📥 Relatório recebido!" : "Importar contagem (.txt)";
+    impHelp.style.display = on ? "none" : "";
+    impPickBtn.textContent = on ? "Importar agora" : "Escolher arquivo";
+  }
+  function closeImportModal() {
+    importModal.style.display = "none";
+    pendingImportText = null;
+    setImportModalShared(false);
+  }
+
+  $("impCancel").addEventListener("click", closeImportModal);
   importModal.addEventListener("click", function (e) {
-    if (e.target === importModal) importModal.style.display = "none";
+    if (e.target === importModal) closeImportModal();
   });
-  $("impPick").addEventListener("click", function () {
+  impPickBtn.addEventListener("click", function () {
+    if (pendingImportText) {
+      var t = pendingImportText;
+      pendingImportText = null;
+      setImportModalShared(false);
+      importReport(t);
+      return;
+    }
     importFile.value = "";
     importFile.click();
   });
@@ -1055,6 +1081,29 @@
 
   $("btnStart").addEventListener("click", startCamera);
   $("btnRetry").addEventListener("click", startCamera);
+
+  // PWA: registra o service worker (necessário para aparecer no
+  // "Compartilhar via" do Android depois de instalado na tela inicial)
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  }
+
+  // Chegou relatório pelo "Compartilhar via"? Abre direto a escolha do produto.
+  if (location.search.indexOf("shared=1") !== -1 && window.caches) {
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+    caches.open("share-inbox").then(function (c) {
+      return c.match("shared-report").then(function (r) {
+        if (r) c.delete("shared-report");
+        return r ? r.text() : null;
+      });
+    }).then(function (t) {
+      if (!t || !t.trim()) return;
+      pendingImportText = t;
+      setImpTarget(activeList);
+      setImportModalShared(true);
+      importModal.style.display = "flex";
+    }).catch(function () {});
+  }
 
   // Init
   loadState();
