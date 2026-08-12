@@ -76,6 +76,15 @@
   .dupmsg { margin-top: 10px; display: none; align-items: center; gap: 10px; padding: 10px 14px; background: #241d10; border: 1px solid #4a3a15; border-radius: 12px; animation: slidein 0.25s ease; font-size: 12.5px; color: #e0b95c; }
   .dupmsg.show { display: flex; }
 
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal-card { background: #14171c; border: 1px solid #262b33; border-radius: 16px; padding: 18px; max-width: 420px; width: 100%; display: flex; flex-direction: column; gap: 12px; animation: slidein 0.2s ease; }
+  .modal-card .mt { font-size: 15px; font-weight: 700; }
+  .modal-card .mhelp { font-size: 12.5px; color: #b8bec6; line-height: 1.6; background: #0f1216; border: 1px solid #1e222a; border-radius: 10px; padding: 10px 12px; }
+  .modal-card .mlabel { font-size: 12px; color: #c4c9cf; }
+  .modal-card .mrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .modal-card .btn-primary { padding: 12px; }
+  .btn-cancel { font-size: 14px; font-weight: 600; color: #e8eaed; background: #1c2027; border: 1px solid #262b33; padding: 12px; border-radius: 12px; cursor: pointer; }
+
   .watoast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom)); background: #14251b; border: 1px solid #2e4d3a; color: #7fe0a8; padding: 12px 18px; border-radius: 12px; font-size: 13px; z-index: 50; max-width: 90%; text-align: center; animation: slidein 0.25s ease; box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
 
   .hist-head { padding: 18px 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -198,13 +207,35 @@
   </div>
 
   <div class="footer">
-    <button id="btnTxt" disabled>Exportar TXT</button>
+    <button id="btnImport">Importar TXT</button>
     <button id="btnWhats" class="whats" disabled>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="flex-shrink:0;"><path d="M12.04 2c-5.46 0-9.9 4.44-9.9 9.9 0 1.75.46 3.45 1.32 4.95L2 22l5.3-1.39c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.9-4.44 9.9-9.9 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2m0 1.67c2.2 0 4.26.86 5.82 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.32a8.19 8.19 0 0 1-1.26-4.38c.01-4.54 3.7-8.24 8.25-8.24M8.53 7.33c-.16 0-.43.06-.66.31-.22.25-.87.86-.87 2.07 0 1.22.89 2.39 1 2.56.14.17 1.76 2.67 4.25 3.73.59.27 1.05.42 1.41.53.59.19 1.13.16 1.56.1.48-.07 1.46-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.07-.1-.23-.16-.48-.27-.25-.14-1.47-.74-1.69-.82-.23-.08-.37-.12-.56.12-.16.25-.64.81-.78.97-.15.17-.29.19-.53.07-.26-.13-1.06-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72-.12-.24-.01-.39.11-.5.11-.11.27-.29.37-.44.13-.14.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.11-.56-1.35-.77-1.84-.2-.48-.4-.42-.56-.43-.14 0-.3-.01-.47-.01"/></svg>
       <span>Enviar WhatsApp</span>
     </button>
     <button id="btnClear" class="danger" disabled>Resetar lista</button>
   </div>
+
+  <div class="modal" id="importModal" style="display:none;">
+    <div class="modal-card">
+      <div class="mt">Importar contagem (.txt)</div>
+      <div class="mhelp">
+        <b>📱 Como pegar o arquivo do WhatsApp:</b><br>
+        1. No WhatsApp, <b>toque no arquivo .txt</b> recebido (ex.: <i>centralux-qr-produto1-...txt</i>) para baixá-lo.<br>
+        2. Volte aqui e toque em <b>Escolher arquivo</b>.<br>
+        3. Na janela que abrir, procure em <b>Downloads</b>, <b>Recentes</b> ou <b>Documentos</b> — normalmente é o <b>arquivo mais recente</b> da lista.
+      </div>
+      <div class="mlabel">Continuar a contagem em:</div>
+      <div class="seg">
+        <button id="impList1" class="active">Produto 1</button>
+        <button id="impList2">Produto 2</button>
+      </div>
+      <div class="mrow">
+        <button class="btn-cancel" id="impCancel">Cancelar</button>
+        <button class="btn-primary" id="impPick">Escolher arquivo</button>
+      </div>
+    </div>
+  </div>
+  <input type="file" id="importFile" accept=".txt,text/plain" style="display:none;">
 
 </div>
 
@@ -274,7 +305,7 @@
   var histEl = $("hist"), emptyEl = $("empty");
   var countTop = $("countTop"), countList = $("countList");
   var bigCount = $("bigCount");
-  var btnTxt = $("btnTxt"), btnWhats = $("btnWhats"), btnClear = $("btnClear");
+  var btnWhats = $("btnWhats"), btnClear = $("btnClear");
   var modeQrBtn = $("modeQr"), modeBarBtn = $("modeBar");
   var list1Btn = $("list1Btn"), list2Btn = $("list2Btn");
   var count1El = $("count1"), count2El = $("count2");
@@ -333,7 +364,6 @@
     countList.textContent = list.length;
     bigCount.textContent = list.length;
     var isEmpty = list.length === 0;
-    btnTxt.disabled = isEmpty;
     btnWhats.disabled = isEmpty;
     btnClear.disabled = isEmpty;
     btnCopyAll.disabled = isEmpty;
@@ -771,14 +801,85 @@
     return "" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + "-" + pad(d.getHours()) + pad(d.getMinutes());
   }
 
-  btnTxt.addEventListener("click", function () {
-    var list = activeItems();
-    if (!list.length) return;
-    var lines = list.slice().reverse().map(function (it, i) {
-      return (i + 1) + ". [" + it.time + "] " + it.value;
-    });
-    download("centralux-qr-produto" + activeList + "-" + stamp() + ".txt", lines.join("\n"), "text/plain;charset=utf-8");
+  // ---- Importar TXT: transferir a contagem de um celular para outro ----
+  // Fluxo: celular A envia o relatório .txt pelo WhatsApp -> celular B baixa
+  // o arquivo, toca em Importar TXT, escolhe o Produto e continua bipando.
+  var importModal = $("importModal"), importFile = $("importFile");
+  var impList1 = $("impList1"), impList2 = $("impList2");
+  var impTarget = 1;
+
+  function setImpTarget(n) {
+    impTarget = n;
+    impList1.classList.toggle("active", n === 1);
+    impList2.classList.toggle("active", n === 2);
+  }
+  impList1.addEventListener("click", function () { setImpTarget(1); });
+  impList2.addEventListener("click", function () { setImpTarget(2); });
+
+  $("btnImport").addEventListener("click", function () {
+    setImpTarget(activeList);
+    importModal.style.display = "flex";
   });
+  $("impCancel").addEventListener("click", function () { importModal.style.display = "none"; });
+  importModal.addEventListener("click", function (e) {
+    if (e.target === importModal) importModal.style.display = "none";
+  });
+  $("impPick").addEventListener("click", function () {
+    importFile.value = "";
+    importFile.click();
+  });
+
+  importFile.addEventListener("change", function () {
+    var f = importFile.files && importFile.files[0];
+    if (!f) return;
+    var fr = new FileReader();
+    fr.onload = function () { importReport(String(fr.result || "")); };
+    fr.onerror = function () { showWaToast("Não consegui ler o arquivo. Tente escolher de novo."); };
+    fr.readAsText(f, "utf-8");
+  });
+
+  function importReport(text) {
+    var parsed = [];
+    text.split(/\r?\n/).forEach(function (ln) {
+      ln = ln.trim();
+      if (!ln) return;
+      if (/^relat/i.test(ln)) return; // pula o cabeçalho do relatório
+      var m = ln.match(/^\d+\.\s*\[([^\]]+)\]\s*(.+)$/);
+      if (m) parsed.push({ time: m[1], value: m[2].trim() });
+      else parsed.push({ time: null, value: ln }); // aceita linha só com o código
+    });
+    if (!parsed.length) {
+      showWaToast("Este arquivo não parece um relatório Centralux QR — nada foi importado.");
+      return;
+    }
+
+    // não duplica: ignora códigos que já estão na lista escolhida
+    var existing = {};
+    itemsOf(impTarget).forEach(function (it) { existing[normKey(it.value)] = true; });
+
+    var d = new Date();
+    var pad = function (n) { return String(n).padStart(2, "0"); };
+    var nowStr = pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() + " " +
+                 pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+
+    var added = 0, dups = 0;
+    parsed.forEach(function (p) {
+      var val = fixMojibake(p.value);
+      var key = normKey(val);
+      if (!key) return;
+      if (existing[key]) { dups++; return; }
+      existing[key] = true;
+      items.unshift({ value: val, time: p.time || nowStr, ts: Date.now(), type: "qr", list: impTarget });
+      added++;
+    });
+    persistItems();
+    importModal.style.display = "none";
+    setActiveList(impTarget);
+    applyListUI();
+    renderList();
+    showWaToast("✅ " + added + " códigos importados para o Produto " + impTarget +
+      (dups ? " (" + dups + " repetidos ignorados)" : "") + ". Pode continuar bipando!");
+  }
 
 
   var waToastEl = null, waToastTimer = null;
